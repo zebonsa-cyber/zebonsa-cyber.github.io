@@ -30,7 +30,9 @@ const EP = {
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtInt = n => (n == null || isNaN(n)) ? '—' : Math.round(n).toLocaleString('en-US');
-const fmtMoney = n => (n == null || isNaN(n) || n < 0) ? '—' : '$' + Math.round(n).toLocaleString('en-US');
+// ACS top-codes some medians (e.g. home value 2,000,001, rent 3,501, income 250,001): show them as "X+".
+const TOPCODES = new Set([2000001, 3501, 250001, 4001]);
+const fmtMoney = n => (n == null || isNaN(n) || n < 0) ? '—' : TOPCODES.has(Math.round(n)) ? '$' + (Math.round(n) - 1).toLocaleString('en-US') + '+' : '$' + Math.round(n).toLocaleString('en-US');
 const fmtPct = n => (n == null || isNaN(n)) ? '—' : (Math.round(n * 10) / 10) + '%';
 const miles = m => m < 0.1 ? 'under 0.1 mi' : (Math.round(m * 10) / 10) + ' mi';
 function distMi(lat1, lon1, lat2, lon2) {
@@ -92,7 +94,7 @@ const NRI_HAZ = {
 const NOISE_CLASSES = [
   { label: '45–50 dB', rgb: [255, 193, 7], lvl: 1, say: 'about like a quiet suburban street' },
   { label: '50–55 dB', rgb: [255, 128, 0], lvl: 2, say: 'like a quiet conversation, noticeable outdoors' },
-  { label: '55–60 dB', rgb: [255, 0, 0], lvl: 3, say: 'at the level the EPA identifies as protective of outdoor activity, so traffic will be noticeable' },
+  { label: '55–60 dB', rgb: [255, 0, 0], lvl: 3, say: 'around the 55 dB guideline the EPA set for outdoor areas, so traffic will be noticeable outside' },
   { label: '60–70 dB', rgb: [255, 51, 153], lvl: 4, say: 'loud: steady traffic noise, may affect sleep with windows open' },
   { label: '70–80 dB', rgb: [163, 0, 204], lvl: 5, say: 'very loud, typical right next to a highway or busy rail line' },
   { label: '80–90 dB', rgb: [82, 0, 204], lvl: 5, say: 'extremely loud, typical beside a major highway or under a flight path' },
@@ -149,7 +151,8 @@ function tidyLabel(r) {
   const city = a.city || a.town || a.village || a.hamlet || a.suburb || a.county || '';
   const st = (a['ISO3166-2-lvl4'] || '').replace('US-', '') || a.state || '';
   const name = r.name && !street.includes(r.name) && r.name !== a.road ? r.name : '';
-  const s = [name, street, city, [st, a.postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const parts = [name, street, city, [st, a.postcode].filter(Boolean).join(' ')].filter(Boolean);
+  const s = parts.filter((p, i) => parts.indexOf(p) === i).join(', ');
   return s || r.display_name;
 }
 async function reverse(lat, lon) {
@@ -281,7 +284,7 @@ async function loadPlace(lat, lon, c) {
   const q = k => firstFeature(EP.tiger + '/' + L_[k], lon, lat, { outFields: 'NAME,GEOID,BASENAME' }).catch(() => null);
   const [state, county, place, cdp, cd, uni, elem, sec, tract] = await Promise.all(Object.keys(L_).map(q));
   if (!state) throw new Error('this point is outside the United States, or the Census boundary service did not answer');
-  const town = place ? place.NAME : cdp ? cdp.NAME + ' (unincorporated)' : 'Unincorporated area';
+  const town = place ? place.NAME.replace(/ (city|town|village|borough|municipality)$/i, '') : cdp ? cdp.NAME.replace(/ CDP$/, '') : 'Unincorporated area';
   const districts = [uni, elem, sec].filter(Boolean).map(d => d.NAME);
   $('#r-geo').textContent = [town, county?.NAME, state.NAME].filter(Boolean).join(' · ');
   c.done(`<div class="kv">
@@ -342,12 +345,13 @@ async function loadRisk(lat, lon, c, g) {
   const comp = a.RISK_RATNG, lvl = NRI_LEVEL[comp] ?? 0;
   const haz = Object.entries(NRI_HAZ).map(([k, name]) => ({ name, r: a[k + '_RISKR'], lvl: NRI_LEVEL[a[k + '_RISKR']] ?? 0 }))
     .filter(h => h.lvl > 0).sort((x, y) => y.lvl - x.lvl);
-  const top = haz.filter(h => h.lvl >= 4).map(h => h.name.toLowerCase());
+  const top = haz.filter(h => h.lvl >= 4).slice(0, 3).map(h => h.name.toLowerCase());
   const colors = ['#9aa3ae', '#3f8a6a', '#7fae6b', '#e2a13b', '#d4562e', '#a3142b'];
   const bars = haz.slice(0, 10).map(h => `<div class="bar"><span>${esc(h.name)}</span><span class="track"><span class="fill" style="width:${h.lvl * 20}%;background:${colors[h.lvl]}"></span></span><span class="lab">${esc(h.r)}</span></div>`).join('');
   const eal = a.EAL_VALT ? fmtMoney(a.EAL_VALT) : null;
   g('risk', 'Hazard risk', comp || '—', lvl);
-  c.done(`<p class="lede">Overall natural hazard risk for this Census tract is <strong>${esc((comp || 'not rated').toLowerCase())}</strong> compared with the rest of the US${top.length ? `, driven mainly by ${esc(listJoin(top))}` : ''}.</p>
+  const why = !top.length ? '' : lvl >= 3 ? `, driven mainly by ${esc(listJoin(top))}` : `, although ${esc(listJoin(top))} ${top.length > 1 ? 'are' : 'is'} rated high here`;
+  c.done(`<p class="lede">Overall natural hazard risk for this Census tract is <strong>${esc((comp || 'not rated').toLowerCase())}</strong> compared with the rest of the US${why}.</p>
     <div class="bars">${bars || '<p>No hazards are rated for this tract.</p>'}</div>
     <p class="weak">Ratings compare this tract with every other US tract. They combine how often a hazard happens, what's exposed and how well the community recovers${eal ? `; FEMA estimates about ${eal} a year in losses across the whole tract` : ''}. Community resilience: ${esc(a.RESL_RATNG || '—')}. Social vulnerability: ${esc(a.SOVI_RATNG || '—')}.</p>`
     + src('FEMA <a href="https://hazards.fema.gov/nri/" target="_blank" rel="noopener">National Risk Index</a>, tract ' + esc(a.TRACTFIPS || '') + '. For property-level wildfire detail see <a href="https://wildfirerisk.org/" target="_blank" rel="noopener">Wildfire Risk to Communities</a>.'), badge(comp || 'Not rated', lvl));
@@ -479,8 +483,9 @@ async function loadSchools(lat, lon, c) {
   const f = { outFields: 'NCESSCH,NAME,STREET,CITY,LAT,LON,LOCALE,SCHOOLYEAR' };
   let r = 2, list = await nearby(EP.nces, lon, lat, r, f);
   if (list.length < 3) { r = 10; list = await nearby(EP.nces, lon, lat, r, f); }
+  if (list.length < 1) { r = 30; list = await nearby(EP.nces, lon, lat, r, f); }
   const S = list.map(s => ({ ...s, d: distMi(lat, lon, s.LAT, s.LON) })).sort((a, b) => a.d - b.d).slice(0, 8);
-  if (!S.length) return c.done('<p>No public schools found within 10 miles.</p>' + src('NCES EDGE public school locations.'));
+  if (!S.length) return c.done('<p>No public schools found within 30 miles.</p>' + src('NCES EDGE public school locations.'));
   c.done(`<table class="data"><thead><tr><th>School</th><th class="num">Distance</th></tr></thead><tbody>
     ${S.map(s => `<tr><td><a href="https://nces.ed.gov/ccd/schoolsearch/school_detail.asp?ID=${esc(s.NCESSCH)}" target="_blank" rel="noopener">${esc(titleCase(s.NAME))}</a><br><span class="weak">${esc(titleCase(s.STREET))}, ${esc(titleCase(s.CITY))}</span></td><td class="num">${miles(s.d)}</td></tr>`).join('')}
     </tbody></table>
