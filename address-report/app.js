@@ -894,22 +894,24 @@ async function loadGround(lat, lon, c) {
   const pts = Array.from({ length: N }, (_, i) => [lon - dLon + (2 * dLon) * i / (N - 1), lat]);
   map.getSource('profile').setData(fc([{ type: 'Feature', geometry: { type: 'LineString', coordinates: pts }, properties: {} }, ptF(pts[0][0], lat, { label: 'W' }), ptF(pts[N - 1][0], lat, { label: 'E' })]));
   ctx.bounds.ground = boundsOf([[pts[0][0], lat - dLon * 0.25], [pts[N - 1][0], lat + dLon * 0.25]]);
-  const [vals, eq, big, bfe] = await Promise.all([
+  const [vals, eq, big, bfe, waters] = await Promise.all([
     pool(pts, 6, ([x, y]) => getJSON(EP.epqs + '?' + qs({ x, y, units: 'Feet', wkid: 4326 }), { timeout: 15000 }).then(j => j.value > -1000 ? +j.value : null)),
     getJSON(EP.usgs + '/count?' + qs({ format: 'geojson', latitude: lat, longitude: lon, maxradiuskm: 100, minmagnitude: 4, starttime: '1976-01-01' })).catch(() => null),
     getJSON(EP.usgs + '/query?' + qs({ format: 'geojson', latitude: lat, longitude: lon, maxradiuskm: 100, minmagnitude: 4, starttime: '1976-01-01', orderby: 'magnitude', limit: 1 })).catch(() => null),
     ctx.bfe,
+    nearbyFeatures(lat, lon, 'water').catch(() => []),
   ]);
+  const inWater = pts.map(p => waters.some(w => w.type === 3 && w.rings.some(r => inRing(p, r))));
   const good = vals.filter(v => v != null);
   const top = big?.features?.[0]?.properties, n = eq?.count;
   const quake = `<div class="facts"><div><b>${n == null ? '—' : int(n)}</b><span>Magnitude 4+ quakes within 100 km since 1976</span></div><div><b>${top ? 'M' + top.mag.toFixed(1) : '—'}</b><span>Largest of those${top ? ', ' + new Date(top.time).getFullYear() : ''}</span></div>`;
   const s = src('USGS <a href="https://apps.nationalmap.gov/epqs/" target="_blank" rel="noopener">3DEP elevation</a>, sampled every 200 ft along a 1.1-mile line; USGS <a href="https://earthquake.usgs.gov/earthquakes/search/" target="_blank" rel="noopener">earthquake catalog</a>.');
   if (good.length < N * 0.6) return c.done(`<p class="verdict">The elevation service didn't return enough points to draw the ground profile.</p>${quake}</div>` + s);
   const mid = vals[(N - 1) / 2] ?? good[Math.floor(good.length / 2)];
-  const land = good.filter(v => v > 0.5);
+  const land = vals.filter((v, i) => v != null && !inWater[i]);
   const sorted = [...land].sort((a, b) => a - b), median = sorted[Math.floor(sorted.length / 2)];
   const rel = mid - median;
-  const wet = land.length < good.length * 0.8;
+  const wet = inWater.filter(Boolean).length >= 3;
   let lo = Math.min(...good), hi = Math.max(...good);
   if (bfe != null) { lo = Math.min(lo, bfe); hi = Math.max(hi, bfe); }
   if (wet) lo = Math.min(lo, 0);
@@ -920,8 +922,9 @@ async function loadGround(lat, lon, c) {
   const firstI = vals.findIndex(v => v != null), lastI = vals.length - 1 - [...vals].reverse().findIndex(v => v != null);
   area = d + `L${X(lastI)} ${H - B}L${X(firstI)} ${H - B}Z`;
   const yt = [y0 + pad, y0 + pad + range / 2, y0 + pad + range].map(v => Math.round(v));
-  const verdict = wet ? `This line runs into open water. The property sits <b>about ${int(mid)} ft above sea level</b>${mid < 10 ? ', low enough that storm surge and sea level rise matter' : ''}.`
-    : Math.abs(rel) < 3 ? 'The property sits about level with the ground around it.'
+  const verdict = wet && land.length < 6 ? `Most of this line crosses water. The property sits <b>about ${int(Math.abs(mid))} ft ${mid < 0 ? 'below' : 'above'} sea level</b>.`
+    : wet && Math.abs(rel) < 3 ? `The property sits about level with nearby land, ${int(Math.abs(mid))} ft ${mid < 0 ? 'below' : 'above'} sea level, and the line crosses open water.`
+    : Math.abs(rel) < 3 ? `The property sits about level with the ground around it${mid < 0 ? `, ${int(-mid)} ft below sea level` : ''}.`
     : rel < 0 ? `The property sits <b>about ${Math.abs(rel).toFixed(0)} ft lower</b> than the typical ground within half a mile, so rain tends to drain toward it.`
     : `The property sits <b>about ${rel.toFixed(0)} ft higher</b> than the typical ground within half a mile, so rain tends to drain away from it.`;
   c.done(`<p class="verdict">${verdict}</p>
