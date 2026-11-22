@@ -6,7 +6,13 @@ Live at https://zebonsa-cyber.github.io/address-report/
 
 ## How it works
 
-It's a static page (`index.html`, `style.css`, `app.js`). The visitor's browser calls each public data service directly. There's no backend, no API keys and nothing stored. Reports are shareable: the URL carries `lat`, `lon` and `label`.
+It's a static page (`index.html`, `style.css`, `app.js`, an ES module). The visitor's browser calls each public data service directly. There's no backend, no API keys and nothing stored. Reports are shareable: the URL carries `lat`, `lon` and `label`.
+
+The map (MapLibre GL) is the stage. Each report section has a view ("lens"); as you scroll, the section crossing a reading line 35% down the screen switches the map: 3D block, aerial photo with the building outline measured like a survey plat, flood zones, noise, walking rings and errands, schools, EPA sites, the Census tract and a west–east elevation line.
+
+Design: one type family (Archivo) across widths, as on maps, with an italic serif only for water. Flagging-tape pink marks the subject property and nothing else.
+
+The earlier card-based version lives at `classic/`.
 
 ## Data sources
 
@@ -21,7 +27,9 @@ It's a static page (`index.html`, `style.css`, `app.js`). The visitor's browser 
 | Neighborhood, internet | ACS 5-year via Esri Living Atlas (tract layer 2, county layer 1) | P3ePLMYs2RVChkJx.svcs.arcgis.com |
 | Schools | NCES EDGE public school locations 2024-25 | nces.ed.gov/opengis |
 | Walkability | EPA National Walkability Index | geodata.epa.gov |
-| Nearby places | OpenStreetMap via Overpass (two mirrors raced) | overpass-api.de, overpass.private.coffee |
+| Basemap, 3D buildings, building outlines, nearby places, house numbers | OpenStreetMap via OpenFreeMap vector tiles (z14 tiles decoded in the browser) | tiles.openfreemap.org |
+| Aerial imagery | Esri World Imagery | server.arcgisonline.com |
+| Ground profile | USGS EPQS, 29 points along a 1.1-mile line | epqs.nationalmap.gov |
 | Alerts | National Weather Service | api.weather.gov |
 | Air quality | Open-Meteo (CAMS model) | air-quality-api.open-meteo.com |
 | Elevation | USGS EPQS | epqs.nationalmap.gov |

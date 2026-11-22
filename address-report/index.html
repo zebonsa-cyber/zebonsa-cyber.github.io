@@ -3,107 +3,83 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Address Report: flood, hazards, noise, schools and neighborhood data for any US address</title>
-<meta name="description" content="Free plain-language report for any US address before you rent or buy: FEMA flood zone, natural hazard risk, transportation noise, schools, internet, walkability, nearby contamination and neighborhood data, pulled live from public sources.">
+<title>Address Report: see a US address and its surroundings before you rent or buy</title>
+<meta name="description" content="Aerial view, building footprint, flood zone, hazard risk, noise, errands within walking distance, schools, pollution sites and neighborhood figures for any US address. Free, live public data.">
 <meta property="og:title" content="Address Report">
-<meta property="og:description" content="Flood zone, hazard risk, noise, schools and neighborhood data for any US address, in plain language.">
+<meta property="og:description" content="See a US address and everything around it: flood zone, hazards, noise, errands, schools and the neighborhood.">
+<meta name="theme-color" content="#17211d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,650&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="style.css?v=7">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231f3a5f'/><path d='M16 6l9 8v12h-6v-7h-6v7H7V14z' fill='%23f6f3ec'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=Source+Serif+4:ital,opsz,wght@1,8..60,400..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
+<link rel="stylesheet" href="style.css?v=30">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2317211d'/><path d='M8 22l8-13 8 13z' fill='none' stroke='%23ee2f79' stroke-width='2.6' stroke-linejoin='round'/></svg>">
 </head>
 <body>
-<header class="masthead">
-  <div class="wrap">
-    <a class="brand" href="./">Address Report</a>
-    <p class="tag">Know a place before you sign. Free, live public data for any US address.</p>
-  </div>
-</header>
+<a class="skip" href="#sheet">Skip to report</a>
 
-<main class="wrap">
-  <section class="search-panel" aria-label="Search">
-    <form id="search" autocomplete="off">
+<div class="stage" id="stage">
+  <div id="map" role="region" aria-label="Map of the address and its surroundings"></div>
+  <nav class="lenses" id="lenses" aria-label="Map views" hidden></nav>
+  <div class="key" id="key" aria-live="polite"></div>
+  <div class="north" aria-hidden="true"><svg viewBox="0 0 24 40"><path d="M12 2l7 20h-14z" fill="currentColor"/><path d="M12 22l7 0-7 16-7-16z" fill="none" stroke="currentColor" stroke-width="1.4"/><text x="12" y="17" text-anchor="middle" font-size="8" font-weight="700" fill="#fff">N</text></svg></div>
+</div>
+
+<main class="sheet" id="sheet">
+  <header class="sheet-top">
+    <a class="mark" href="./" aria-label="Address Report home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 25l10-17 10 17z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><circle cx="16" cy="19.5" r="2.6" fill="#ee2f79"/></svg>
+      <span>Address Report</span>
+    </a>
+    <form id="search" class="search" autocomplete="off" role="search">
       <label for="q" class="sr-only">US street address</label>
-      <input id="q" name="q" type="search" placeholder="Enter a US street address, e.g. 1 Canal St, New Orleans, LA" required>
-      <button type="submit" id="go">Get report</button>
+      <input id="q" name="q" type="search" placeholder="Street address, city, state" required>
+      <button type="submit" id="go">Look up</button>
     </form>
-    <p class="hint">Or click anywhere on the map. Examples:
-      <a href="?q=1+Canal+St,+New+Orleans,+LA">New Orleans riverfront</a> ·
-      <a href="?q=1001+Ocean+Dr,+Miami+Beach,+FL">Miami Beach</a> ·
-      <a href="?q=4801+Wilshire+Blvd,+Los+Angeles,+CA">Los Angeles</a> ·
-      <a href="?q=100+W+Main+St,+Bozeman,+MT">Small-town Montana</a>
-    </p>
+    <p id="search-msg" class="search-msg" role="status" aria-live="polite"></p>
     <ul id="choices" class="choices" hidden></ul>
-    <p id="search-msg" class="msg" role="status" aria-live="polite"></p>
+  </header>
+
+  <section id="welcome" class="welcome">
+    <h1>See an address, and everything around it, before you sign.</h1>
+    <p class="welcome-lede">Type a US address or click the map. You get the building from above, its flood zone, natural hazards, traffic noise, what's within walking distance, nearby schools, pollution sites and the neighborhood, all from public records.</p>
+    <p class="welcome-try">Try one of these:</p>
+    <ul class="samples">
+      <li><a href="?q=1001+Ocean+Dr,+Miami+Beach,+FL"><b>1001 Ocean Drive</b><span>Miami Beach, Florida</span></a></li>
+      <li><a href="?q=4801+Wilshire+Blvd,+Los+Angeles,+CA"><b>4801 Wilshire Boulevard</b><span>Los Angeles, California</span></a></li>
+      <li><a href="?q=1+Canal+St,+New+Orleans,+LA"><b>1 Canal Street</b><span>New Orleans, Louisiana</span></a></li>
+      <li><a href="?q=100+W+Main+St,+Bozeman,+MT"><b>100 West Main Street</b><span>Bozeman, Montana</span></a></li>
+    </ul>
+    <p class="fine">Nothing you type is stored. Each lookup goes straight from your browser to FEMA, the Census Bureau, EPA, NCES, USGS, NOAA and OpenStreetMap.</p>
   </section>
 
-  <div class="layout">
-    <aside class="map-col">
-      <div id="map" aria-label="Map"></div>
-      <div class="overlays">
-        <span>Map overlays:</span>
-        <label><input type="checkbox" id="ov-flood"> FEMA flood zones</label>
-        <label><input type="checkbox" id="ov-noise"> Transportation noise</label>
+  <article id="report" class="report" hidden>
+    <header class="title-block">
+      <h1 id="r-addr" class="addr"></h1>
+      <p id="r-place" class="place"></p>
+      <div class="title-actions">
+        <button type="button" id="share" class="text-btn">Copy link</button>
+        <button type="button" id="print" class="text-btn">Print</button>
       </div>
-      <div id="legend" class="legend" hidden></div>
-    </aside>
-
-    <section id="report" class="report" hidden aria-live="polite">
-      <div class="report-head">
-        <div>
-          <p class="eyebrow">Report for</p>
-          <h1 id="r-addr"></h1>
-          <p id="r-geo" class="geo"></p>
-        </div>
-        <div class="actions">
-          <button type="button" id="share" class="ghost">Copy link</button>
-          <button type="button" id="print" class="ghost">Print</button>
-        </div>
-      </div>
-
-      <div id="glance" class="glance" aria-label="At a glance"></div>
-
-      <div id="cards" class="cards"></div>
-
-      <section class="card caveats">
-        <h2>What this report can't tell you</h2>
-        <ul>
-          <li><strong>Crime.</strong> There is no reliable free national crime data at the address level. Check the local police department's crime map.</li>
-          <li><strong>Exact internet providers and speeds.</strong> The FCC's address-level map needs an API key, so this report uses Census survey data on how many households subscribe. <a href="https://broadbandmap.fcc.gov/home" target="_blank" rel="noopener">Look up the address on the FCC National Broadband Map</a>.</li>
-          <li><strong>School quality.</strong> Listed schools are the nearest public schools, not necessarily the ones assigned to this address. Confirm attendance zones with the district.</li>
-          <li><strong>The building itself.</strong> Radon, lead paint, mold, foundation and roof condition need an inspection. <a href="https://www.epa.gov/radon/find-information-about-local-radon-zones-and-state-contact-information" target="_blank" rel="noopener">EPA radon zones by state</a>.</li>
-          <li><strong>Official flood determinations.</strong> Lenders use official FIRM panels. <a id="msc-link" href="https://msc.fema.gov/portal/home" target="_blank" rel="noopener">Check the FEMA Flood Map Service Center</a>.</li>
-        </ul>
-        <p class="fine">This is a screening tool built from public datasets with different dates and resolutions. It is not an inspection, an appraisal, or legal or insurance advice. Neighborhood figures describe the Census tract, an area of roughly 1,200 to 8,000 people, not the specific address.</p>
-      </section>
+      <dl id="summary" class="summary" aria-label="Summary"></dl>
+    </header>
+    <div id="sections"></div>
+    <section class="limits">
+      <h2>What this can't tell you</h2>
+      <p><b>Lot lines.</b> Parcel boundaries come from county assessors and aren't in a free national dataset; the outline shown is the building, not the lot.</p>
+      <p><b>Crime.</b> There's no reliable free address-level crime data. Use the local police department's crime map.</p>
+      <p><b>Exact internet providers.</b> <a href="https://broadbandmap.fcc.gov/home" target="_blank" rel="noopener">Check the FCC National Broadband Map</a> for providers and speeds at this address.</p>
+      <p><b>Assigned schools and the building's condition.</b> Confirm attendance zones with the district, and get an inspection for radon, lead, mold and structure.</p>
+      <p class="fine">This is a screening tool built from public datasets of different dates and resolutions. It is not an inspection, an appraisal, a flood determination, or legal or insurance advice. Neighborhood figures describe the Census tract, not the address.</p>
     </section>
+  </article>
 
-    <section id="intro" class="intro">
-      <h2>One address, every public record that matters</h2>
-      <p>Type an address and this page queries federal datasets directly from your browser. Nothing is stored and there is no account.</p>
-      <div class="intro-grid">
-        <div><strong>Flood zone</strong><span>FEMA National Flood Hazard Layer</span></div>
-        <div><strong>Natural hazards</strong><span>FEMA National Risk Index, 18 hazards</span></div>
-        <div><strong>Noise</strong><span>US DOT road, rail and aviation noise</span></div>
-        <div><strong>Contamination</strong><span>EPA Superfund, toxic release and brownfield sites</span></div>
-        <div><strong>Schools</strong><span>NCES public school locations and districts</span></div>
-        <div><strong>Neighborhood</strong><span>Census ACS income, rent, home values, internet</span></div>
-        <div><strong>Walkability</strong><span>EPA National Walkability Index and nearby shops</span></div>
-        <div><strong>Right now</strong><span>NWS weather alerts and current air quality</span></div>
-      </div>
-    </section>
-  </div>
+  <footer class="credits">
+    <p>Map data <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a>, <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> and <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors. Imagery Esri, Maxar, Earthstar Geographics. Geocoding <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a>. Every section names its own source. <a href="classic/">Classic version</a>.</p>
+  </footer>
 </main>
 
-<footer class="foot">
-  <div class="wrap">
-    <p>Data from FEMA, US DOT/BTS, EPA, NCES, US Census Bureau, USGS, NOAA/NWS, Open-Meteo and OpenStreetMap contributors. Geocoding by <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> (© OpenStreetMap contributors, ODbL). Each card links to its source.</p>
-  </div>
-</footer>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js?v=7"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
+<script type="module" src="app.js?v=30"></script>
 </body>
 </html>
