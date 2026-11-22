@@ -533,7 +533,7 @@ async function loadWalk(lat, lon, c, g) {
   const rows = cats.map(([name, test]) => {
     const m = els.filter(e => test(e.t)).map(e => ({ ...e, d: distMi(lat, lon, e.lat, e.lon) })).sort((a, b) => a.d - b.d);
     const nearest = m[0];
-    return `<tr><td>${name}</td><td class="num">${m.length}${m.length >= 100 ? '+' : ''}</td><td>${nearest ? esc(nearest.t.name || 'unnamed') + ' · ' + miles(nearest.d) : '<span class="weak">none within range</span>'}</td></tr>`;
+    return `<tr><td>${name}</td><td class="num">${m.length}${data.elements.length >= 600 ? '+' : ''}</td><td>${nearest ? esc(nearest.t.name || 'unnamed') + ' · ' + miles(nearest.d) : '<span class="weak">none within range</span>'}</td></tr>`;
   }).join('');
   c.done(head + `<table class="data"><thead><tr><th>Within 1 mile</th><th class="num">Count</th><th>Nearest</th></tr></thead><tbody>${rows}</tbody></table>` + s, wl ? badge(wl, wlvl) : '');
 }
