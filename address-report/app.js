@@ -121,11 +121,12 @@ const ArcExport = L.TileLayer.extend({
   },
 });
 const floodLayer = new ArcExport(EP.nfhl, { layers: 'show:28', opacity: 0.55, minZoom: 12, maxZoom: 19, attribution: 'FEMA NFHL' });
-const noiseLayers = Object.values(EP.noise).map(u => L.tileLayer(u + '/tile/{z}/{y}/{x}', { maxNativeZoom: 12, maxZoom: 19, opacity: 0.55, attribution: 'US DOT BTS' }));
+const NOISE_BOUNDS = { conus: [[24, -125], [49.5, -66.5]], alaska: [[51, -180], [71.5, -129]], hawaii: [[18.5, -161], [22.5, -154.5]] };
+const noiseLayers = Object.entries(EP.noise).map(([k, u]) => L.tileLayer(u + '/tile/{z}/{y}/{x}', { maxNativeZoom: 12, maxZoom: 19, opacity: 0.55, bounds: NOISE_BOUNDS[k], attribution: 'US DOT BTS' }));
 
 function renderLegend() {
   const parts = [];
-  if ($('#ov-flood').checked) parts.push('<h4>FEMA flood zones</h4><div>Zoom in to street level to see zones. Blue shading marks high-risk areas (A and V zones); orange marks moderate risk.</div>');
+  if ($('#ov-flood').checked) parts.push('<h4>FEMA flood zones</h4><div>Zoom in to street level to see zones. Each area is labeled with its zone: A and V zones are high risk, shaded X (0.2% annual chance) is moderate, and unshaded X is minimal.</div>');
   if ($('#ov-noise').checked) parts.push('<h4>Transportation noise (24-hour average)</h4>' + NOISE_CLASSES.map(c => `<div><span class="sw" style="background:rgb(${c.rgb})"></span>${c.label}</div>`).join(''));
   $('#legend').innerHTML = parts.join('');
   $('#legend').hidden = !parts.length;
