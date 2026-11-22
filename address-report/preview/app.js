@@ -341,12 +341,22 @@ function renderKey(lens) {
   k.innerHTML = html;
 }
 
-// scroll-driven lenses
-const observer = new IntersectionObserver(entries => {
-  if (Date.now() < lensLock) return;
-  const vis = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-  if (vis[0]) setLens(vis[0].target.dataset.lens);
-}, { rootMargin: innerWidth < 860 ? '-50% 0px -40% 0px' : '-30% 0px -60% 0px' });
+// scroll-driven lenses: the section crossing a reading line (35% down the screen) sets the view
+let scrollTicking = false;
+function lensFromScroll() {
+  scrollTicking = false;
+  if (!ctx || Date.now() < lensLock || $('#report').hidden) return;
+  const small = innerWidth < 860;
+  const line = small ? innerHeight * 0.48 + (innerHeight - innerHeight * 0.48) * 0.3 : innerHeight * 0.35;
+  const els = [$('.title-block'), ...document.querySelectorAll('.sec')];
+  let pick = null;
+  for (const el of els) { const r = el.getBoundingClientRect(); if (r.top <= line && r.bottom > line) { pick = el; break; } }
+  if (!pick && els.length && els[0].getBoundingClientRect().top > line) pick = els[0];
+  if (pick) setLens(pick.dataset.lens);
+}
+addEventListener('scroll', () => { if (!scrollTicking) { scrollTicking = true; requestAnimationFrame(lensFromScroll); } }, { passive: true });
+addEventListener('resize', () => { map.resize(); lensFromScroll(); });
+const observer = { observe() {}, disconnect() {} };
 
 // ---------------- geocoding & search ----------------
 let lastNom = 0;
