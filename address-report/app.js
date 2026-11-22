@@ -39,7 +39,15 @@ function distMi(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * t) * Math.cos(lat2 * t) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
-async function getJSON(url, { timeout = 20000, init } = {}) {
+async function getJSON(url, opts = {}) {
+  try { return await getJSONOnce(url, opts); }
+  catch (e) {
+    if (opts.noRetry || !/too long|reached|HTTP 5/.test(e.message)) throw e;
+    await new Promise(r => setTimeout(r, 800));
+    return getJSONOnce(url, opts);
+  }
+}
+async function getJSONOnce(url, { timeout = 20000, init } = {}) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeout);
   try {
@@ -129,7 +137,7 @@ async function nominatim(path) {
   const wait = Math.max(0, lastNominatim + 1100 - Date.now());
   if (wait) await new Promise(r => setTimeout(r, wait));
   lastNominatim = Date.now();
-  return getJSON(EP.nominatim + path, { timeout: 15000 });
+  return getJSON(EP.nominatim + path, { timeout: 15000, noRetry: true });
 }
 async function geocode(q) {
   const res = await nominatim('/search?' + qs({ q, format: 'jsonv2', addressdetails: 1, countrycodes: 'us', limit: 5 }));
@@ -165,7 +173,13 @@ async function runSearch(q) {
     const res = await geocode(q);
     if (!res.length) { msg.textContent = 'No US match for that address. Try adding the city and state, or click the spot on the map.'; return; }
     const seen = new Set(), uniq = res.filter(r => !seen.has(r.label) && seen.add(r.label));
-    if (uniq.length > 1 && !/^\d/.test(uniq[0].label) && uniq[0].type !== 'house' && uniq[0].type !== 'building') {
+    // A query with a house number goes straight to the best match carrying that number.
+    const num = (q.match(/^\s*(\d+[A-Za-z]?)\b/) || [])[1];
+    if (num) {
+      const hit = uniq.find(r => r.label.startsWith(num + ' ')) || uniq.find(r => new RegExp('\\b' + num + '\\b').test(r.label));
+      if (hit) { msg.textContent = ''; return report(hit); }
+    }
+    if (uniq.length > 1) {
       msg.textContent = 'Several places match. Pick one:';
       choices.innerHTML = uniq.map((r, i) => `<li><button type="button" data-i="${i}">${esc(r.label)}</button></li>`).join('');
       choices.hidden = false;
@@ -397,7 +411,7 @@ async function loadNoise(lat, lon, c, g) {
 }
 
 async function loadEnv(lat, lon, c, g) {
-  const fields = { outFields: 'primary_name,city_name,state_code,latitude,longitude,facility_url,profile_url,pgm_sys_acrnm' };
+  const fields = { outFields: '*' };
   const [sf, tri, bf] = await Promise.all([
     nearby(EP.epa + '/0', lon, lat, 3, fields), nearby(EP.epa + '/1', lon, lat, 1, fields), nearby(EP.epa + '/5', lon, lat, 1, fields),
   ]);
@@ -485,23 +499,21 @@ async function loadWalk(lat, lon, c, g) {
     g('walk', 'Walkability', `${wl} (${wi.toFixed(1)}/20)`, wlvl);
   }
   const head = wi != null ? `<p class="lede">EPA walkability score: <strong>${wi.toFixed(1)} out of 20</strong>, ${esc(wl.toLowerCase())}.</p>` : '';
-  c.done(head + '<p class="weak">Looking up shops and services within a mile…</p>' + s, wl ? badge(wl, wlvl) : '');
+  c.done(head + '<p class="weak"><span class="spin"></span>Looking up shops and services within a mile. This part can take up to a minute.</p>' + s, wl ? badge(wl, wlvl) : '');
   const R = 1609;
-  const q = `[out:json][timeout:25];(
-    nwr(around:${R},${lat},${lon})[shop~"^(supermarket|grocery|greengrocer)$"];
-    nwr(around:${R},${lat},${lon})[amenity=pharmacy];
-    nwr(around:${R},${lat},${lon})[leisure~"^(park|playground)$"];
-    nwr(around:${R},${lat},${lon})[amenity~"^(hospital|clinic|doctors)$"];
-    nwr(around:${R},${lat},${lon})[amenity~"^(cafe|restaurant)$"];
+  const q = `[out:json][timeout:55];(
+    nw(around:${R},${lat},${lon})[shop~"^(supermarket|grocery|greengrocer)$"];
+    nw(around:${R},${lat},${lon})[amenity~"^(pharmacy|hospital|clinic|doctors|cafe|restaurant)$"];
+    nw(around:${R},${lat},${lon})[leisure~"^(park|playground)$"];
     node(around:800,${lat},${lon})[highway=bus_stop];
     node(around:${R},${lat},${lon})[railway~"^(station|halt|tram_stop)$"];
-  );out tags center 400;`;
+  );out tags center 600;`;
   let data = null, lastErr;
-  for (const u of EP.overpass) {
-    try { data = await getJSON(u, { timeout: 40000, init: { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } } }); break; }
-    catch (e) { lastErr = e; }
-  }
-  if (!data) return c.done(head + `<p class="weak">Nearby shops and services couldn't load (${esc(lastErr?.message)}).</p>` + s, wl ? badge(wl, wlvl) : '');
+  try {
+    data = await Promise.any(EP.overpass.map(u => getJSON(u, { timeout: 65000, noRetry: true,
+      init: { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } } })));
+  } catch (e) { lastErr = e.errors ? e.errors[0] : e; }
+  if (!data) return c.done(head + `<p class="weak">Nearby shops and services couldn't load (${esc(lastErr?.message)}). The OpenStreetMap servers may be busy; reload in a few minutes.</p>` + s, wl ? badge(wl, wlvl) : '');
   const cats = [
     ['Grocery stores', t => /^(supermarket|grocery|greengrocer)$/.test(t.shop)],
     ['Pharmacies', t => t.amenity === 'pharmacy'],
