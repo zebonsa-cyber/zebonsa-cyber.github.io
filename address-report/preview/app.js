@@ -254,7 +254,7 @@ function setLayersFor(lens) {
   map.setPaintProperty('place-labels', 'text-halo-color', aerial ? 'rgba(23,33,29,.8)' : '#fff');
   map.setPaintProperty('housenums', 'text-color', aerial ? '#fff' : C.graphite);
   map.setPaintProperty('housenums', 'text-halo-color', aerial ? 'rgba(23,33,29,.8)' : '#fff');
-  map.setPaintProperty('subject-fill', 'fill-opacity', aerial ? 0.08 : 0.16);
+  map.setPaintProperty('subject-fill', 'fill-opacity', aerial ? 0.0 : 0.16);
   // the 2D outline would hover over the 3D block
   map.setLayoutProperty('subject-line', 'visibility', lens === 'context' ? 'none' : 'visible');
   map.setLayoutProperty('subject-fill', 'visibility', lens === 'context' ? 'none' : 'visible');
@@ -603,7 +603,6 @@ async function loadBuilding(lat, lon, c) {
   if (currentLens === 'site') moveCamera(cameraFor('site'));
   const sqft = best.area * 10.7639;
   const longest = Math.max(...sides) * 3.28084, n = verts.length;
-  const shape = n <= 4 ? 'a simple four-sided footprint' : n <= 8 ? `${n} sides` : `an irregular outline with ${n} sides`;
   const big = sqft > 40000 ? 'a large building, likely commercial or multi-unit' : sqft > 6000 ? 'a mid-size building, often multi-unit or commercial' : sqft > 1200 ? 'about the size of a typical detached house' : 'a small structure';
   c.done(`<p class="verdict">The mapped outline covers about <b>${int(Math.round(sqft / 10) * 10)} sq ft</b> of ground, ${big}.</p>
     <div class="facts">
@@ -611,7 +610,7 @@ async function loadBuilding(lat, lon, c) {
       <div><b>${int(longest)} ft</b><span>Longest side</span></div>
       <div><b>${h ? int(h * 3.28084) + ' ft' : '—'}</b><span>${h ? 'Mapped height' : 'Height not mapped'}</span></div>
       <div><b>${ft == null ? '—' : int(ft) + ' ft'}</b><span>Ground elevation</span></div>
-      <div><b>${n}</b><span>Corners, ${esc(shape.replace(/^a /, ''))}</span></div>
+      <div><b>${n}</b><span>${n <= 4 ? 'Corners, a simple outline' : 'Corners, an irregular outline'}</span></div>
       <div><b>${best.contains ? 'Yes' : 'Nearby'}</b><span>${best.contains ? 'Address falls inside this outline' : 'Closest outline to the address'}</span></div>
     </div>
     <p class="note">Footprint is ground coverage, not floor area. Side lengths are measured from the mapped outline and can be off by a few feet. Scroll back to the top for the block in 3D.</p>`
@@ -844,7 +843,7 @@ async function loadEnv(lat, lon, c) {
 
 function dumbbell(label, sub, here, there, fmt, hereLab = 'This tract', max) {
   if (here == null && there == null) return '';
-  const W = 300, m = max ?? (Math.max(here ?? 0, there ?? 0) * 1.15 || 1), x = v => 6 + (Math.min(v, m) / m) * (W - 12);
+  const W = 230, m = max ?? (Math.max(here ?? 0, there ?? 0) * 1.15 || 1), x = v => 6 + (Math.min(v, m) / m) * (W - 12);
   const hx = here != null ? x(here) : null, tx = there != null ? x(there) : null;
   const anchor = X => X > W - 60 ? 'end' : X < 40 ? 'start' : 'middle';
   return `<div class="row"><div class="lab">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</div>
@@ -907,22 +906,28 @@ async function loadGround(lat, lon, c) {
   const mid = vals[(N - 1) / 2] ?? good[Math.floor(good.length / 2)];
   let lo = Math.min(...good), hi = Math.max(...good);
   if (bfe != null) { lo = Math.min(lo, bfe); hi = Math.max(hi, bfe); }
+  if (wet) lo = Math.min(lo, 0);
   const range = Math.max(hi - lo, 12), pad = range * 0.18, y0 = lo - pad, y1 = lo + range + pad;
-  const W = 440, H = 170, L = 34, B = 22, X = i => L + i / (N - 1) * (W - L - 6), Y = v => 8 + (1 - (v - y0) / (y1 - y0)) * (H - B - 8);
+  const W = 360, H = 170, L = 30, B = 22, X = i => L + i / (N - 1) * (W - L - 6), Y = v => 8 + (1 - (v - y0) / (y1 - y0)) * (H - B - 8);
   let d = '', area = '', started = false;
   vals.forEach((v, i) => { if (v == null) return; d += (started ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); started = true; });
   const firstI = vals.findIndex(v => v != null), lastI = vals.length - 1 - [...vals].reverse().findIndex(v => v != null);
   area = d + `L${X(lastI)} ${H - B}L${X(firstI)} ${H - B}Z`;
   const yt = [y0 + pad, y0 + pad + range / 2, y0 + pad + range].map(v => Math.round(v));
-  const rel = mid - (good.reduce((a, b) => a + b, 0) / good.length);
-  const verdict = Math.abs(rel) < 3 ? 'The property sits about level with the ground around it.'
-    : rel < 0 ? `The property sits <b>about ${Math.abs(rel).toFixed(0)} ft lower</b> than the surrounding half mile on average, so water drains toward it.`
-    : `The property sits <b>about ${rel.toFixed(0)} ft higher</b> than the surrounding half mile on average, so water drains away from it.`;
+  const land = good.filter(v => v > 0.5);
+  const sorted = [...land].sort((a, b) => a - b), median = sorted[Math.floor(sorted.length / 2)];
+  const rel = mid - median;
+  const wet = land.length < good.length * 0.8;
+  const verdict = wet ? `This line runs into open water. The property sits <b>about ${int(mid)} ft above sea level</b>${mid < 10 ? ', low enough that storm surge and sea level rise matter' : ''}.`
+    : Math.abs(rel) < 3 ? 'The property sits about level with the ground around it.'
+    : rel < 0 ? `The property sits <b>about ${Math.abs(rel).toFixed(0)} ft lower</b> than the typical ground within half a mile, so rain tends to drain toward it.`
+    : `The property sits <b>about ${rel.toFixed(0)} ft higher</b> than the typical ground within half a mile, so rain tends to drain away from it.`;
   c.done(`<p class="verdict">${verdict}</p>
     <div class="profile"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ground elevation profile west to east through the property">
       <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="${C.contour}" stroke-width="1" opacity=".35"/></pattern></defs>
       ${yt.map(v => `<line x1="${L}" x2="${W - 6}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.rule}" stroke-width="1"/><text x="${L - 6}" y="${Y(v) + 4}" font-size="10.5" text-anchor="end" fill="${C.graphite}">${int(v)}</text>`).join('')}
       <path d="${area}" fill="url(#hatch)"/><path d="${d}" fill="none" stroke="${C.contour}" stroke-width="2.2" stroke-linejoin="round"/>
+      ${wet ? `<line x1="${L}" x2="${W - 6}" y1="${Y(0)}" y2="${Y(0)}" stroke="${C.water}" stroke-width="1"/><text x="${L + 4}" y="${Y(0) + 13}" font-size="11" fill="${C.water}" font-family="Source Serif 4, Georgia, serif" font-style="italic">Sea level</text>` : ''}
       ${bfe != null ? `<line x1="${L}" x2="${W - 6}" y1="${Y(bfe)}" y2="${Y(bfe)}" stroke="${C.water}" stroke-width="1.6" stroke-dasharray="5 3"/><text x="${W - 8}" y="${Y(bfe) - 5}" font-size="11.5" text-anchor="end" fill="${C.water}" font-family="Source Serif 4, Georgia, serif" font-style="italic">Base flood elevation ${bfe} ft</text>` : ''}
       <line x1="${X((N - 1) / 2)}" x2="${X((N - 1) / 2)}" y1="${Y(mid) - 22}" y2="${Y(mid)}" stroke="${C.flag}" stroke-width="2"/><circle cx="${X((N - 1) / 2)}" cy="${Y(mid)}" r="4.5" fill="${C.flag}" stroke="#fff" stroke-width="1.5"/>
       <text x="${X((N - 1) / 2)}" y="${Y(mid) - 27}" font-size="11.5" font-weight="650" text-anchor="middle" fill="${C.ink}">This property, ${int(mid)} ft</text>

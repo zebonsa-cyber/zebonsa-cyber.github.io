@@ -30,7 +30,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 #map{position:absolute;inset:0}
 .maplibregl-ctrl-attrib{font-size:11px;font-family:"Archivo",sans-serif;font-variation-settings:var(--cond)}
 .maplibregl-ctrl-group{border-radius:6px!important;box-shadow:0 1px 3px rgba(23,33,29,.25)!important}
-.north{position:absolute;right:16px;top:16px;width:18px;color:var(--ink);opacity:.8;pointer-events:none;transition:transform .3s}
+.north{position:absolute;right:16px;top:64px;width:18px;color:var(--ink);opacity:.8;pointer-events:none;transition:transform .3s}
 .stage.is-aerial .north{color:#fff}
 
 .lenses{position:absolute;left:14px;top:14px;display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:2px;max-width:calc(100% - 60px);
