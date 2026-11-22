@@ -199,9 +199,9 @@ const mapReady = new Promise(res => map.on('load', () => {
   map.addLayer({ id: 'tract-fill', type: 'fill', source: 'tract', layout: { visibility: 'none' }, paint: { 'fill-color': C.ink, 'fill-opacity': 0.06 } });
   map.addLayer({ id: 'tract-line', type: 'line', source: 'tract', layout: { visibility: 'none' }, paint: { 'line-color': C.ink, 'line-width': 2, 'line-dasharray': [4, 2] } });
   map.addLayer({ id: 'rings', type: 'line', source: 'rings', layout: { visibility: 'none' }, paint: { 'line-color': C.ink, 'line-width': 1.3, 'line-dasharray': [3, 2.5], 'line-opacity': 0.75 } });
-  sym('ring-labels', 'rings', { 'symbol-placement': 'point', 'text-field': ['get', 'label'], 'text-size': 11.5, 'text-font': ['Noto Sans Bold'], visibility: 'none' }, {}, { filter: ['==', ['geometry-type'], 'Point'] });
+  sym('ring-labels', 'rings', { 'symbol-placement': 'point', 'text-field': ['get', 'label'], 'text-size': 12.5, 'text-font': ['Noto Sans Bold'], visibility: 'none' }, { 'text-halo-width': 2 }, { filter: ['==', ['geometry-type'], 'Point'] });
   map.addLayer({ id: 'envrings', type: 'line', source: 'envrings', layout: { visibility: 'none' }, paint: { 'line-color': C.ink, 'line-width': 1.3, 'line-dasharray': [3, 2.5], 'line-opacity': 0.75 } });
-  sym('envring-labels', 'envrings', { 'symbol-placement': 'point', 'text-field': ['get', 'label'], 'text-size': 11.5, 'text-font': ['Noto Sans Bold'], visibility: 'none' }, {}, { filter: ['==', ['geometry-type'], 'Point'] });
+  sym('envring-labels', 'envrings', { 'symbol-placement': 'point', 'text-field': ['get', 'label'], 'text-size': 12.5, 'text-font': ['Noto Sans Bold'], visibility: 'none' }, { 'text-halo-width': 2 }, { filter: ['==', ['geometry-type'], 'Point'] });
   map.addLayer({ id: 'profile', type: 'line', source: 'profile', layout: { visibility: 'none', 'line-cap': 'round' }, paint: { 'line-color': C.contour, 'line-width': 3.5 } });
   sym('profile-labels', 'profile', { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-offset': [0, -1.1], visibility: 'none' }, { 'text-color': C.contour }, { filter: ['==', ['geometry-type'], 'Point'] });
   for (const id of ['pois', 'schools', 'env']) {
@@ -534,15 +534,20 @@ function simplify(pts, tol) { // Douglas–Peucker on a closed ring (local metre
 async function loadBuilding(lat, lon, c) {
   const [blds, nums, elev] = await Promise.all([nearbyFeatures(lat, lon, 'building'), nearbyFeatures(lat, lon, 'housenumber').catch(() => []), ctx.elev]);
   const P = localXY(lat, lon);
+  // Geocoders often drop the point on the street. If the map has the same house number nearby, measure from there.
+  const num = ((ctx.place.line1 || '').match(/^(\d+[A-Za-z]?)\b/) || [])[1];
+  const numHit = num && nums.filter(n => n.type === 1 && String(n.props.housenumber) === num)
+    .map(n => ({ ll: n.rings[0][0], d: dist(lat, lon, n.rings[0][0][1], n.rings[0][0][0]) })).sort((a, b) => a.d - b.d)[0];
+  const anchor = numHit && numHit.d < 0.12 ? P.to(numHit.ll) : [0, 0];
   let best = null;
   for (const b of blds) for (const ring of b.rings) {
     if (ring.length < 4) continue;
     const loc = ring.map(P.to), area = Math.abs(ringArea(loc));
     if (area < 12) continue;
-    const contains = inRing([0, 0], loc);
+    const contains = inRing(anchor, loc);
     const cen = loc.reduce((s, p) => [s[0] + p[0] / loc.length, s[1] + p[1] / loc.length], [0, 0]);
-    const d = contains ? 0 : Math.hypot(cen[0], cen[1]);
-    if (d > 35) continue;
+    const d = contains ? 0 : Math.hypot(cen[0] - anchor[0], cen[1] - anchor[1]);
+    if (d > 45) continue;
     const score = contains ? area : 1e9 + d; // smallest containing ring, else nearest
     if (!best || score < best.score) best = { ring, loc, area, score, props: b.props, contains };
   }
@@ -696,18 +701,19 @@ async function sampleNoise(base, lat, lon, offsets) {
   return out;
 }
 function noiseRuler(here, near) {
-  const W = 440, x = db => 8 + (db - 40) / 55 * (W - 16);
+  const W = 340, x = db => 8 + (db - 40) / 55 * (W - 16);
   const bands = NOISE_CLASSES.map(cl => `<rect x="${x(cl.lo)}" y="22" width="${x(cl.hi) - x(cl.lo)}" height="12" fill="rgb(${cl.rgb})" opacity=".85"/>`).join('');
-  const refs = [[45, 'Quiet street'], [55, 'EPA outdoor guideline'], [65, 'Busy road'], [80, 'Next to a highway']];
-  const ticks = refs.map(([db, t], i) => `<line x1="${x(db)}" x2="${x(db)}" y1="34" y2="${i % 2 ? 58 : 44}" stroke="${C.graphite}" stroke-width="1"/><text x="${x(db)}" y="${i % 2 ? 70 : 56}" font-size="11" fill="${C.graphite}" text-anchor="${db > 75 ? 'end' : 'start'}" dx="${db > 75 ? 4 : -2}">${t}</text>`).join('');
-  const mark = (cl, label, y, filled) => {
-    const mid = cl == null ? 42.5 : (NOISE_CLASSES[cl].lo + NOISE_CLASSES[cl].hi) / 2, X = x(mid);
-    return `<path d="M${X - 6} ${y} L${X + 6} ${y} L${X} ${y + 8} Z" fill="${filled ? C.ink : '#fff'}" stroke="${C.ink}" stroke-width="1.4"/><text x="${X}" y="${y - 4}" font-size="11.5" font-weight="650" text-anchor="middle" fill="${C.ink}">${label}</text>`;
-  };
-  return `<div class="ruler"><svg viewBox="0 -8 ${W} 84" role="img" aria-label="Noise scale from 40 to 95 decibels with this address marked">
-    <rect x="${x(40)}" y="22" width="${x(45) - x(40)}" height="12" fill="#e4e8e1"/>${bands}
-    ${[40, 50, 60, 70, 80, 90].map(d => `<text x="${x(d)}" y="18" font-size="10" fill="${C.graphite}" text-anchor="middle">${d}</text>`).join('')}
-    ${near != null && near !== here ? mark(near, 'Within 150 m', 6, false) : ''}${mark(here, 'Here', near != null && near !== here && Math.abs((here ?? -1) - near) < 2 ? -8 : 6, true)}
+  const refs = [[45, 'Quiet street'], [55, 'EPA guideline'], [65, 'Busy road'], [80, 'Highway edge']];
+  const ticks = refs.map(([db, t]) => `<line x1="${x(db)}" x2="${x(db)}" y1="34" y2="40" stroke="${C.graphite}" stroke-width="1"/><text x="${x(db)}" y="52" font-size="10.5" fill="${C.graphite}" text-anchor="middle">${t}</text>`).join('');
+  const midOf = cl => cl == null ? 42.5 : (NOISE_CLASSES[cl].lo + NOISE_CLASSES[cl].hi) / 2;
+  const hx = x(midOf(here)), nx = near != null && near !== here ? x(midOf(near)) : null;
+  const tri = (X, filled) => `<path d="M${X - 6} 9 L${X + 6} 9 L${X} 18 Z" fill="${filled ? C.ink : '#fff'}" stroke="${C.ink}" stroke-width="1.4"/>`;
+  const lab = (X, t, anchor) => `<text x="${X}" y="4" font-size="12" font-weight="650" text-anchor="${anchor}" fill="${C.ink}">${t}</text>`;
+  const close = nx != null && Math.abs(nx - hx) < 70;
+  return `<div class="ruler"><svg viewBox="0 -10 ${W} 66" role="img" aria-label="Noise scale from 40 to 95 decibels with this address marked">
+    <rect x="${x(40)}" y="20" width="${x(45) - x(40)}" height="14" fill="#dfe3dc"/>${bands.replace(/y="22"/g, 'y="20"').replace(/height="12"/g, 'height="14"')}
+    ${tri(hx, true)}${lab(hx + (close && nx > hx ? 4 : 0), 'Here', close ? (nx > hx ? 'end' : 'start') : 'middle')}
+    ${nx != null ? tri(nx, false) + lab(nx, 'Nearby peak', close ? (nx > hx ? 'start' : 'end') : 'middle') : ''}
     ${ticks}</svg></div>`;
 }
 async function loadNoise(lat, lon, c) {

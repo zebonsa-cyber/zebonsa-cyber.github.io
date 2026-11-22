@@ -33,9 +33,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .north{position:absolute;right:16px;top:16px;width:18px;color:var(--ink);opacity:.8;pointer-events:none;transition:transform .3s}
 .stage.is-aerial .north{color:#fff}
 
-.lenses{position:absolute;left:14px;top:14px;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100% - 80px);
+.lenses{position:absolute;left:14px;top:14px;display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:2px;max-width:calc(100% - 60px);
   background:rgba(241,243,239,.92);backdrop-filter:blur(6px);padding:4px;border-radius:8px;box-shadow:0 1px 3px rgba(23,33,29,.2)}
-.lenses button{border:0;background:none;padding:6px 10px;border-radius:5px;font-size:13px;font-weight:550;font-variation-settings:var(--cond);color:var(--graphite);letter-spacing:.01em}
+.lenses button{flex:none;border:0;background:none;padding:6px 10px;border-radius:5px;font-size:13px;font-weight:550;font-variation-settings:var(--cond);color:var(--graphite);letter-spacing:.01em}
 .lenses button:hover{color:var(--ink);background:rgba(23,33,29,.06)}
 .lenses button[aria-pressed="true"]{background:var(--ink);color:#fff}
 
