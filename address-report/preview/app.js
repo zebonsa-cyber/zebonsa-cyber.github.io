@@ -152,7 +152,7 @@ const roadW = k => ['interpolate', ['exponential', 1.6], ['zoom'],
 const ROADS = ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'service'];
 const noiseSources = Object.fromEntries(Object.entries(EP.noise).map(([k, [u, b]]) => ['noise_' + k,
   { type: 'raster', tiles: [u + '/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 12, bounds: b, attribution: 'Noise: US DOT BTS' }]));
-const geo = id => ({ id, type: 'geojson', data: fc([]) });
+const geo = () => ({ type: 'geojson', data: fc([]) });
 
 const style = {
   version: 8,
