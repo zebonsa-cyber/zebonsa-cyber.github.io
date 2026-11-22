@@ -906,6 +906,10 @@ async function loadGround(lat, lon, c) {
   const s = src('USGS <a href="https://apps.nationalmap.gov/epqs/" target="_blank" rel="noopener">3DEP elevation</a>, sampled every 200 ft along a 1.1-mile line; USGS <a href="https://earthquake.usgs.gov/earthquakes/search/" target="_blank" rel="noopener">earthquake catalog</a>.');
   if (good.length < N * 0.6) return c.done(`<p class="verdict">The elevation service didn't return enough points to draw the ground profile.</p>${quake}</div>` + s);
   const mid = vals[(N - 1) / 2] ?? good[Math.floor(good.length / 2)];
+  const land = good.filter(v => v > 0.5);
+  const sorted = [...land].sort((a, b) => a - b), median = sorted[Math.floor(sorted.length / 2)];
+  const rel = mid - median;
+  const wet = land.length < good.length * 0.8;
   let lo = Math.min(...good), hi = Math.max(...good);
   if (bfe != null) { lo = Math.min(lo, bfe); hi = Math.max(hi, bfe); }
   if (wet) lo = Math.min(lo, 0);
@@ -916,10 +920,6 @@ async function loadGround(lat, lon, c) {
   const firstI = vals.findIndex(v => v != null), lastI = vals.length - 1 - [...vals].reverse().findIndex(v => v != null);
   area = d + `L${X(lastI)} ${H - B}L${X(firstI)} ${H - B}Z`;
   const yt = [y0 + pad, y0 + pad + range / 2, y0 + pad + range].map(v => Math.round(v));
-  const land = good.filter(v => v > 0.5);
-  const sorted = [...land].sort((a, b) => a - b), median = sorted[Math.floor(sorted.length / 2)];
-  const rel = mid - median;
-  const wet = land.length < good.length * 0.8;
   const verdict = wet ? `This line runs into open water. The property sits <b>about ${int(mid)} ft above sea level</b>${mid < 10 ? ', low enough that storm surge and sea level rise matter' : ''}.`
     : Math.abs(rel) < 3 ? 'The property sits about level with the ground around it.'
     : rel < 0 ? `The property sits <b>about ${Math.abs(rel).toFixed(0)} ft lower</b> than the typical ground within half a mile, so rain tends to drain toward it.`
