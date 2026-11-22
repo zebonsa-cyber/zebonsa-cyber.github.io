@@ -167,18 +167,23 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 /* ---------- small screens: map on top, sheet below ---------- */
 @media (max-width:860px){
-  :root{--sheet-w:100%}
-  .stage{inset:0 0 auto 0;height:48vh;position:fixed}
-  .sheet{width:100%;margin-top:48vh;padding:0 18px 30px;box-shadow:0 -1px 0 var(--rule);border-radius:14px 14px 0 0}
-  .sheet-top{border-radius:14px 14px 0 0;padding-top:14px}
-  .welcome{padding-top:22px}
-  .key{bottom:24px;left:10px;max-width:220px;font-size:11.5px;padding:7px 9px}
-  .lenses{left:8px;top:8px;right:8px;max-width:none;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
-  .lenses button{flex:none}
+  :root{--sheet-w:100%;--map-h:46vh}
+  body{overflow:hidden}
+  .stage{inset:0 0 auto 0;height:var(--map-h)}
+  .sheet{position:fixed;top:var(--map-h);bottom:0;left:0;right:0;width:100%;margin:0;overflow-y:auto;overscroll-behavior:contain;
+    padding:0 18px 30px;box-shadow:0 -2px 10px rgba(23,33,29,.18);border-radius:14px 14px 0 0}
+  .sheet-top{padding-top:12px}
+  .mark{margin-bottom:8px}
+  .welcome{padding-top:20px}
+  .key{bottom:10px;left:8px;max-width:60%;font-size:11.5px;padding:6px 9px}
+  .key .row{display:none}
+  .key b{margin:0;font-size:12px}
+  .lenses{left:8px;top:8px;right:8px;max-width:none}
   .north{display:none}
   .facts{grid-template-columns:repeat(2,1fr)}
   .hz{grid-template-columns:repeat(2,1fr)}
-  .db .row{grid-template-columns:118px 1fr}
+  .db .row{grid-template-columns:112px 1fr}
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group{display:none}
 }
 @media print{
   .stage{position:relative;inset:auto;height:360px;width:100%}

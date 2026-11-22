@@ -275,7 +275,7 @@ function cameraFor(lens) {
 function moveCamera(cam, first) {
   const dur = reduceMotion ? 0 : first ? 2800 : 1000;
   if (cam.bounds) {
-    const opts = { padding: innerWidth < 860 ? 30 : 60, pitch: 0, bearing: 0, duration: dur, maxZoom: 17.5 };
+    const opts = { padding: innerWidth <= 860 ? 24 : 60, pitch: 0, bearing: 0, duration: dur, maxZoom: 17.5 };
     map.fitBounds(cam.bounds, opts);
   } else if (first) {
     map.flyTo({ ...cam, duration: dur, curve: 1.6, essential: false });
@@ -346,15 +346,17 @@ let scrollTicking = false;
 function lensFromScroll() {
   scrollTicking = false;
   if (!ctx || Date.now() < lensLock || $('#report').hidden) return;
-  const small = innerWidth < 860;
-  const line = small ? innerHeight * 0.48 + (innerHeight - innerHeight * 0.48) * 0.3 : innerHeight * 0.35;
+  const small = innerWidth <= 860;
+  const line = small ? innerHeight * 0.46 + innerHeight * 0.54 * 0.3 : innerHeight * 0.35;
   const els = [$('.title-block'), ...document.querySelectorAll('.sec')];
   let pick = null;
   for (const el of els) { const r = el.getBoundingClientRect(); if (r.top <= line && r.bottom > line) { pick = el; break; } }
   if (!pick && els.length && els[0].getBoundingClientRect().top > line) pick = els[0];
   if (pick) setLens(pick.dataset.lens);
 }
-addEventListener('scroll', () => { if (!scrollTicking) { scrollTicking = true; requestAnimationFrame(lensFromScroll); } }, { passive: true });
+const onScroll = () => { if (!scrollTicking) { scrollTicking = true; requestAnimationFrame(lensFromScroll); } };
+addEventListener('scroll', onScroll, { passive: true });
+$('#sheet').addEventListener('scroll', onScroll, { passive: true });
 addEventListener('resize', () => { map.resize(); lensFromScroll(); });
 const observer = { observe() {}, disconnect() {} };
 
@@ -472,7 +474,7 @@ async function report(place) {
   $('.title-block').dataset.lens = 'context';
   observer.observe($('.title-block'));
   for (const s of SECTIONS) { const el = sectionEl(s); holder.appendChild(el); observer.observe(el); }
-  window.scrollTo({ top: 0 });
+  window.scrollTo({ top: 0 }); $('#sheet').scrollTop = 0;
 
   for (const id of DYNAMIC) map.getSource(id).setData(fc([]));
   pin?.remove();
