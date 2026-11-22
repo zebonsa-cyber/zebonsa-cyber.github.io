@@ -828,7 +828,7 @@ async function loadEnv(lat, lon, c) {
 
 function dumbbell(label, sub, here, there, fmt, hereLab = 'This tract', max) {
   if (here == null && there == null) return '';
-  const W = 300, m = max ?? Math.max(here ?? 0, there ?? 0) * 1.15 || 1, x = v => 6 + (Math.min(v, m) / m) * (W - 12);
+  const W = 300, m = max ?? (Math.max(here ?? 0, there ?? 0) * 1.15 || 1), x = v => 6 + (Math.min(v, m) / m) * (W - 12);
   const hx = here != null ? x(here) : null, tx = there != null ? x(there) : null;
   const anchor = X => X > W - 60 ? 'end' : X < 40 ? 'start' : 'middle';
   return `<div class="row"><div class="lab">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</div>
